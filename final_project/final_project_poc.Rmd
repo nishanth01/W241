@@ -23,28 +23,38 @@ randomize <- function() {
   sample(c(rep(0,20),rep(1,20)))
 }
 
-assign_resume <- function(company_id){
-  user <- randomize()
-  good <- company_id*user
-  bad <- company_id*(1-user) 
+assign_attributes <- function(company_id,company,stagger){
+  good <- company_id*company
+  bad <- company_id*(1-company) 
+  stagger_good <- stagger[which(good > 0)]
+  stagger_bad  <- stagger[which(bad > 0)]
+
   return (data.frame(good = good[good != 0],
-                    bad = bad[bad != 0]))
+                     bad = bad[bad != 0],
+                     stagger_good = stagger_good,
+                     stagger_bad = stagger_bad))
 }
 
 #Get assignments for users in CA
 company_id_ca <- c(1:40)
-user_1 = assign_resume(company_id_ca)
+random_ca <- randomize()
+stagger_ca <- randomize()
+
+user_1 = assign_attributes(company_id_ca,random_ca,stagger_ca)
 write.table(user_1,paste(download_path,"/user1.txt",sep=""), sep="\t")
 
-user_2 = assign_resume(company_id_ca)
+user_2 = assign_attributes(company_id_ca,(1-random_ca),(1-stagger_ca))
 write.table(user_2, paste(download_path,"/user2.txt",sep=""), sep="\t") 
 
 #Get assignments for users in NY
+random_ny <- randomize()
+stagger_ny <- randomize()
 company_id_ny <- c(41:80)
-user_3 = assign_resume(company_id_ny)
+
+user_3 = assign_attributes(company_id_ny,random_ny,stagger_ny)
 write.table(user_3, paste(download_path,"/user3.txt",sep=""), sep="\t")
 
-user_4 = assign_resume(company_id_ny)
+user_4 = assign_attributes(company_id_ny,(1-random_ny),(1-stagger_ny))
 write.table(user_4, paste(download_path,"/user4.txt",sep=""), sep="\t")
 
 user_1
