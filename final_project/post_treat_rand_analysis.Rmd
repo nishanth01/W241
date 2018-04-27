@@ -1,0 +1,100 @@
+---
+title: "W241 Final Project: Post Treatment Analysis"
+author: 
+  - "Nishanth Nair, Samir Datta, Kim Vignola, Kathleen Wang"
+
+date: \today
+
+fontsize: 12pt
+
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{xcolor}
+
+output: pdf_document
+---
+
+
+```{r}
+library(data.table)
+library(stargazer)
+library(ggplot2)
+library(gmodels)
+library('dplyr')
+library('scales')
+library('ggthemes')
+library(multiwayvcov)
+library(sandwich)
+library(expss)
+library(readxl)
+
+dodge = position_dodge(width=0.9)
+theme_set(theme_gray(base_size = 13))
+```
+
+
+```{r}
+source('clean_data.R')
+```
+
+
+### Model to test randomization
+
+$$
+university\_brand = 1 + good\_resume + staggered\_application
+$$
+
+
+
+```{r}
+east.data.1 <- data.table(alldata[alldata$coast == 'East' & alldata$job_id < 81,])
+
+#Randomization test
+mod.east.1 <- glm(university_brand ~ 1 + good_resume + staggered_application,
+                    data = east.data.1,family = "binomial")
+summary(mod.east.1)
+
+mod.all <- glm(university_brand ~ 1 + good_resume + staggered_application+coast,
+                    data = alldata,family = "binomial")
+summary(mod.all)
+
+stargazer(mod.east.1,type = "text")
+
+```
+
+
+
+
+```{r}
+#Balance test (post treatment)
+mod.east.1.post <- glm(university_brand ~ 1 + good_resume + staggered_application,
+                    data = east.data.1[east.data.1$both_applications_valid ==1,],
+                     family = "binomial")
+summary(mod.east.1.post)
+
+
+
+mod.east.1.null.post <- glm(university_brand ~ 1,
+                            data = east.data.1[east.data.1$both_applications_valid ==1,],
+                            family = "binomial")
+summary(mod.east.1.null.post)
+
+anova(mod.east.1.post, mod.east.1.null.post, test = "LRT")
+
+```
+
+
+
+```{r}
+
+#Inverse probability weighting
+prob.mod <- glm(I(both_applications_valid == 0) ~ good_resume * staggered_application * university_brand, data = east.data.1)
+
+east.data.1[ , w := 1 / prob.mod$fitted.values]
+
+final.mod.east.1 <- lm(call_back_binary ~ staggered_application + 
+                          good_resume + university_brand, 
+                            data = east.data.1[both_applications_valid == 1], weights = w)
+summary(final.mod.east.1)
+
+```

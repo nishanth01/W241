@@ -1,0 +1,195 @@
+---
+title: "W241 Final Project: Randomization Analysis"
+author: 
+  - "Nishanth Nair, Samir Datta, Kim Vignola, Kathleen Wang"
+
+date: \today
+
+fontsize: 12pt
+
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{xcolor}
+
+output: pdf_document
+---
+
+```{r}
+library(data.table)
+library(stargazer)
+library(ggplot2)
+library(gmodels)
+library('dplyr')
+library('scales')
+library('ggthemes')
+library(multiwayvcov)
+library(sandwich)
+library(expss)
+library(readxl)
+
+dodge = position_dodge(width=0.9)
+theme_set(theme_gray(base_size = 13))
+```
+
+
+```{r}
+source('clean_data.R')
+```
+
+
+
+```{r}
+company.data <- company_info
+d <- alldata
+
+d = apply_labels(d,
+                      university_brand = c("Branded Univ" = 1,
+                                           "Non Branded Univ" = 0),
+                      good_resume = c("Weak Resume" = 0,
+                                      "Good Resume"=1),
+                      staggered_application = c("not staggered" = 0,
+                                                "staggered"=1)
+)
+```
+
+```{r}
+#Phase 1 data
+p1.data <- d[d$job_id  > 0 & d$job_id  < 81, ]
+p1.company.data <- company.data[company.data$job_id > 0 & company.data$job_id < 81,]
+
+#Phase 2 data
+p2.data <- d[d$job_id  > 80, ]
+
+```
+
+
+```{r}
+#phase1 - company distribution
+print(table(p1.company.data$size_bin,p1.company.data$coast))
+
+print(prop.test(table(p1.company.data$size_bin,p1.company.data$coast)))
+
+print(table(alldata$size_bin,alldata$university_brand))
+
+```
+
+```{r}
+#phase1 - company distribution: West Coast
+p1.west.data <- p1.data[p1.data$job_id  > 0 & p1.data$job_id  < 41, ]
+good <- p1.west.data[p1.west.data$good_resume ==1,]
+print(table(good$size_bin,good$university_brand))
+print(prop.table(table(good$size_bin,good$university_brand))*100)
+
+print(prop.test(table(good$size_bin,good$university_brand)))
+```
+
+
+```{r}
+#phase1 - company distribution: East Coast
+p1.east.data <- p1.data[p1.data$job_id  > 40 & p1.data$job_id  < 81, ]
+good <- p1.east.data[p1.east.data$good_resume ==1,]
+stagger <- p1.east.data[p1.east.data$staggered_application ==1,]
+
+print(table(p1.east.data$university_brand,p1.east.data$good_resume,p1.east.data$staggered_application))
+
+print(table(good$size_bin,good$university_brand))
+print(prop.table(table(good$size_bin,good$university_brand))*100)
+
+print(prop.test(table(good$size_bin,good$university_brand)))
+
+print(prop.test(table(p1.east.data$size_bin,p1.east.data$university_brand)))
+
+```
+
+
+```{r}
+#phase2 - company distribution: West Coast
+p2.west.data <- p2.data[p2.data$job_id  > 80 & p1.data$job_id  < 121, ]
+good <- p2.west.data[p2.west.data$good_resume ==1,]
+print(table(good$size_bin,good$university_brand))
+print(prop.table(table(good$size_bin,good$university_brand))*100)
+
+print(prop.test(table(good$size_bin,good$university_brand)))
+
+print(prop.test(table(p2.west.data$size_bin,1)))
+
+chisq.test(p2.west.data$size_bin,p2.west.data$university_brand)
+
+```
+
+```{r}
+#phase2 - company distribution: East Coast
+p2.east.data <- p2.data[p2.data$job_id  > 120, ]
+good <- p2.east.data[p2.east.data$good_resume ==1,]
+print(table(good$size_bin,good$university_brand))
+print(prop.table(table(good$size_bin,good$university_brand))*100)
+
+print(prop.test(table(good$size_bin,good$university_brand)))
+```
+
+
+
+### Evaluate phase 1 data
+
+```{r}
+east.data.1 <- data.table(alldata[alldata$coast == 'East' & alldata$job_id < 81,])
+print(table(east.data.1$size_bin,east.data.1$university_brand))
+print(prop.table(table(east.data.1$size_bin,east.data.1$university_brand))*100)
+
+east.data.2 <- data.table(alldata[alldata$coast == 'East' & alldata$job_id > 80,])
+print(table(east.data.2$size_bin,east.data.2$university_brand))
+print(prop.table(table(east.data.2$size_bin,east.data.2$university_brand))*100)
+
+west.data.1 <- data.table(alldata[alldata$coast == 'West' & alldata$job_id < 81,])
+print(table(west.data.1$size_bin,west.data.1$university_brand))
+print(prop.table(table(west.data.1$size_bin,west.data.1$university_brand))*100)
+
+west.data.2 <- data.table(alldata[alldata$coast == 'West' & alldata$job_id > 80,])
+print(table(west.data.2$size_bin,west.data.2$university_brand))
+print(prop.table(table(west.data.2$size_bin,west.data.2$university_brand))*100)
+
+```
+
+
+```{r}
+east.data.1 <- data.table(alldata[alldata$coast == 'East' & alldata$job_id < 81,])
+
+good <- east.data.1[east.data.1$good_resume ==1,]
+
+print(prop.test(table(good$size_bin)))
+
+#Randomization test
+
+mod.east.1 <- lm(size_bin ~ university_brand,data = east.data.1)
+summary(mod.east.1)
+
+se <- sqrt(diag(vcovHC(mod.east.1, type = "HC3")))
+
+stargazer(mod.east.1,se=list(se),type = "text")
+
+
+set.seed(23) 
+  dat1 <- rbinom(10, size = 1, prob = 0.3) 
+  dat2 <- rbinom(20, size = 1, prob = 0.5) 
+
+  test.list <- twoSamplePermutationTestProportion(
+    dat1, dat2, alternative = "less") 
+
+twoSamplePermutationTestProportion(dat1, dat2, x.and.y = "Binomial Outcomes", 
+    alternative = "two.sided", tol = sqrt(.Machine$double.eps))
+
+
+```
+
+$$
+university\_brand = 1 + good\_resume + staggered\_application + company\_size
+$$
+
+
+```{r}
+
+mod.east.1.null <- glm(university_brand ~ 1,data = east.data.1,family = "binomial")
+summary(mod.east.1.null)
+
+anova(mod.east.1, mod.east.1.null, test = "LRT")
+```
